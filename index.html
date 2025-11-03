@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SidduGPT — Jute (single file)</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#fff;color:#0b1220;display:flex;align-items:center;justify-content:center;height:100vh;padding:12px}
+    .app{width:100%;max-width:760px;height:92vh;border-radius:14px;box-shadow:0 10px 30px rgba(2,6,23,0.08);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;background:linear-gradient(180deg,#fff,#f7fbff)}
+    header{padding:16px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eef3fb}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#ff7ad1,#7c5cff);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-family:Space Mono}
+    .title{font-weight:700}
+    main{padding:18px;overflow:auto}
+    .messages{display:flex;flex-direction:column;gap:12px;max-width:94%}
+    .msg{padding:12px 14px;border-radius:12px;line-height:1.35;box-shadow:0 6px 20px rgba(6,24,60,0.04);max-width:80%}
+    .user{align-self:flex-end;background:#111827;color:#fff;border-bottom-right-radius:6px}
+    .assistant{align-self:flex-start;background:#f4f8ff;color:#05123a;display:flex;gap:10px}
+    .avatar{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#ff66d9,#8b5cf6);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+    .meta{font-size:12px;color:#6b7280;margin-bottom:6px}
+    .input-area{padding:12px;border-top:1px solid #eef3fb;display:flex;gap:8px;align-items:center;background:rgba(255,255,255,0.8)}
+    .text{flex:1;display:flex;gap:8px;align-items:center;background:white;padding:8px;border-radius:12px;border:1px solid #eef3ff}
+    .text input{border:none;outline:none;font-size:15px;width:100%}
+    .btn{background:#0b69ff;color:#fff;padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
+    .small{font-size:13px;color:#6b7280}
+    .error{color:#b91c1c;background:#fff1f2;padding:8px;border-radius:8px;border:1px solid #fecaca}
+    @media(max-width:520px){.app{height:100vh;border-radius:0}.logo{width:40px;height:40px}}
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Siddu GPT chat with Jute">
+    <header>
+      <div class="brand">
+        <div class="logo">SG</div>
+        <div class="title">Siddu GPT — <span style="font-weight:800">Jute</span></div>
+      </div>
+      <div class="small"></div>
+    </header>
+
+    <main>
+      <div id="messages" class="messages" aria-live="polite"></div>
+    </main>
+
+    <div class="input-area">
+      <div class="text">
+        <input id="prompt" placeholder="Ask Jute anything — press Enter or Send" aria-label="Message input"/>
+      </div>
+      <button id="sendBtn" class="btn">Send</button>
+    </div>
+  </div>
+
+  <script>
+    // ---------- CONFIG ----------
+    // Paste your Sarvam API key here for personal testing ONLY.
+    // Remove it before committing to any public repo.
+    const API_KEY = "sk_22v3cmsd_M6aysGIQkTDYXLqcytu4kHyI";
+
+    const API_ENDPOINT = "https://api.sarvam.ai/v1/chat/completions";
+    const MODEL = "sarvam-m"; // hidden & fixed as requested
+
+    // ---------- UI refs ----------
+    const messagesEl = document.getElementById('messages');
+    const promptEl = document.getElementById('prompt');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // ---------- Conversation and helpers ----------
+    let conversation = [
+      { role: "system", content: "You are Jute — a playful Gen-Z assistant for Siddu GPT. Keep answers short, friendly, with casual slang and an emoji or two where appropriate." }
+    ];
+
+    function escapeHtml(s){ return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+    function addMessageBubble({who, text, meta, isError=false}) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'msg ' + (who==='user' ? 'user' : 'assistant');
+      if (who === 'assistant') {
+        wrapper.innerHTML = `
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div class="avatar">J</div>
+            <div>
+              ${meta ? `<div class="meta">${meta}</div>` : ''}
+              <div style="white-space:pre-wrap;">${escapeHtml(text)}</div>
+            </div>
+          </div>
+        `;
+      } else {
+        wrapper.textContent = text;
+      }
+      if (isError) {
+        const err = document.createElement('div');
+        err.className = 'error';
+        err.style.marginTop = '8px';
+        err.textContent = text;
+        wrapper.innerHTML = `<div style="display:flex;align-items:center;gap:10px"><div class="avatar">J</div><div>${meta ? `<div class="meta">${meta}</div>` : ''}</div></div>`;
+        wrapper.appendChild(err);
+      }
+      messagesEl.appendChild(wrapper);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function showTyping() {
+      const t = document.createElement('div');
+      t.id = 'typing';
+      t.className = 'msg assistant';
+      t.innerHTML = '<div style="display:flex;align-items:center;gap:10px"><div class="avatar">J</div><div><div class="meta">Jute is typing…</div><div>•••</div></div></div>';
+      messagesEl.appendChild(t);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    function hideTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
+
+    // ---------- Send function (uses fetch directly) ----------
+    async function sendMessage(text) {
+      if (!API_KEY || API_KEY === "YOUR_API_SUBSCRIPTION_KEY") {
+        alert("Put your Sarvam API key into the API_KEY constant in the file (for testing).");
+        return;
+      }
+      if (!text || !text.trim()) return;
+
+      // push user locally & render
+      const userText = text.trim();
+      conversation.push({ role: "user", content: userText });
+      addMessageBubble({ who: 'user', text: userText });
+
+      // typing indicator
+      showTyping();
+
+      // build request body
+      const body = {
+        model: MODEL,
+        messages: conversation.map(m => ({ role: m.role, content: m.content })),
+        max_tokens: 800,
+        temperature: 0.6
+      };
+
+      try {
+        console.log("Sending request to Sarvam:", { endpoint: API_ENDPOINT, model: MODEL });
+        const res = await fetch(API_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + API_KEY
+          },
+          body: JSON.stringify(body)
+        });
+
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch(e) { data = null; }
+
+        if (!res.ok) {
+          // show helpful error bubble with server body if present
+          const serverMsg = data?.error?.message || text || `HTTP ${res.status}`;
+          hideTyping();
+          addMessageBubble({ who: 'assistant', text: `API returned ${res.status}: ${serverMsg}`, meta: `model=${MODEL}`, isError: true });
+          console.error("Sarvam error:", res.status, serverMsg, data);
+          return;
+        }
+
+        // extract assistant message
+        let assistantText = "";
+        if (data?.choices && data.choices[0]?.message?.content) {
+          assistantText = data.choices[0].message.content;
+        } else if (data?.choices && data.choices[0]?.text) {
+          assistantText = data.choices[0].text;
+        } else if (data?.output && typeof data.output === 'string') {
+          assistantText = data.output;
+        } else {
+          assistantText = JSON.stringify(data || text);
+        }
+
+        // append assistant to convo and UI
+        conversation.push({ role: "assistant", content: assistantText });
+        hideTyping();
+        addMessageBubble({ who: 'assistant', text: assistantText, meta: `Jute — ${MODEL}` });
+        console.log("Assistant reply:", assistantText);
+      } catch (err) {
+        hideTyping();
+        addMessageBubble({ who: 'assistant', text: `Network error: ${err.message}`, meta: `model=${MODEL}`, isError: true });
+        console.error("Network error:", err);
+      }
+    }
+
+    // ---------- UI wiring ----------
+    sendBtn.addEventListener('click', () => {
+      sendMessage(promptEl.value);
+      promptEl.value = '';
+      promptEl.focus();
+    });
+    promptEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendBtn.click();
+      }
+    });
+
+    // initial greeting
+    addMessageBubble({ who: 'assistant', text: "Heyyy! I'm Jute — Hi ra kanna how are you . Ask me anything.'", meta: "Jute" });
+
+    // helpful tip: expose window.sendMessage for quick console testing
+    window._siddu_send = (txt) => sendMessage(txt);
+  </script>
+</body>
+</html>
